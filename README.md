@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pulse Agency - Premium Corporate Site
 
-## Getting Started
+Built on Next.js 16 (App Router), TailwindCSS v4, TypeScript, and integrated with HubSpot CRM & Twilio WhatsApp Messaging.
 
-First, run the development server:
+## Project Architecture
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. **Frontend:** React 19, Lucide React (icons), React Hook Form, Zod.
+2. **Backend:** Next.js Route Handlers (`app/api/`).
+3. **Integrations:**
+   - **HubSpot CRM:** For Contact & Deal Upserts based on SQL tier.
+   - **Twilio WhatsApp:** Scheduled 2 hours prior to HubSpot Meetings.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup Instructions
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. **Configure Environment Variables**
+   Copy `.env.example` to `.env.local`:
+   ```bash
+   cp .env.example .env.local
+   ```
+   *Note: Edit `.env.local` and add your real HubSpot Private App Token and Twilio Credentials for integrations to function.*
 
-## Learn More
+3. **Configure HubSpot**
+   Review `docs/hubspot-setup.md` for exact instructions on properties to create inside CRM to avoid API errors.
 
-To learn more about Next.js, take a look at the following resources:
+4. **Run the Development Server**
+   ```bash
+   npm run dev
+   ```
+   Site will be accessible at: [http://localhost:3000](http://localhost:3000)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Lead Qualification Scoring
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- SQL: Score >= 60 (Redirects to Meeting Scheduler)
+- MQL: Score 30-59 (Redirects to Nurturing List)
+- LEAD: Score <30 (Redirects to Nurturing List)
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Scoring matrix runs entirely on the backend to avoid client-side manipulation. See `lib/scoring.ts` for exact logic implementation.
