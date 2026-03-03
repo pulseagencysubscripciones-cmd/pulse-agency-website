@@ -1,35 +1,28 @@
-import { DiagnosticoPayload, ScoringResult, Tier } from "./types";
-
 /**
- * Calculates the score based on the answers and determines the tier (SQL, MQL, LEAD)
- * 
- * SCORING RULES:
- * - Presupuesto: 5k+=30, 2k-5k=30, 500-2k=15, <500=5
- * - Ingresos: 50k+=20, 20k-50k=20, 5k-20k=10, <5k=5
- * - Urgencia: ASAP=15, 30 días=10, 90 días=5
- * - Industria bonus: Construcción/Servicios profesionales/Real Estate/Ecommerce=10, Otros=5
- * - Objetivo: Más clientes o Automatizar procesos=10, Otros=5
- * - WhatsApp opt-in: true=5
- * 
- * TIER RANGES:
- * - SQL: >= 60
- * - MQL: 30 - 59
- * - LEAD: < 30
+ * Logic for lead and credit scoring calculations
  */
-export function calculateScore(data: DiagnosticoPayload): ScoringResult {
+
+export type Tier = "SQL" | "MQL" | "LEAD";
+
+export interface DiagnosticoData {
+    ingresos_mensuales: string;
+    urgencia: string;
+    industria: string;
+    objetivo_principal?: string[];
+    whatsapp_optin?: boolean;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Main site functions (Diagnostico funnel)
+// ─────────────────────────────────────────────────────────────────
+
+export function calculateScore(data: DiagnosticoData) {
     let score = 0;
 
-    // Presupuesto
-    if (data.presupuesto_marketing === "5k+" || data.presupuesto_marketing === "2k-5k") {
+    // Ingresos Mensuales
+    if (data.ingresos_mensuales === "50k+") {
         score += 30;
-    } else if (data.presupuesto_marketing === "500-2k") {
-        score += 15;
-    } else {
-        score += 5;
-    }
-
-    // Ingresos
-    if (data.ingresos_mensuales === "50k+" || data.ingresos_mensuales === "20k-50k") {
+    } else if (data.ingresos_mensuales === "20k-50k") {
         score += 20;
     } else if (data.ingresos_mensuales === "5k-20k") {
         score += 10;
@@ -75,4 +68,23 @@ export function calculateScore(data: DiagnosticoPayload): ScoringResult {
     }
 
     return { score, tier };
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Credit portal functions (NET-30 portal)
+// ─────────────────────────────────────────────────────────────────
+
+export interface ScoringInput {
+    income: number;
+    debts: number;
+    creditInquiries: number;
+}
+
+export function calculatePreliminaryScore(input: ScoringInput): number {
+    // Simple dummy algorithm for MVP
+    const base = 600;
+    const incomeFactor = Math.min(input.income / 1000, 100);
+    const debtFactor = Math.max(0, 100 - (input.debts / 500));
+
+    return Math.round(base + incomeFactor + debtFactor - (input.creditInquiries * 5));
 }

@@ -1,169 +1,146 @@
-import { Client } from "@hubspot/api-client";
-import { DiagnosticoPayload, Tier } from "./types";
+import { Client } from '@hubspot/api-client'
 
-const hubspotClient = new Client({ accessToken: process.env.HUBSPOT_PRIVATE_APP_TOKEN });
+export const hubspot = new Client({
+    accessToken: process.env.HUBSPOT_PRIVATE_APP_TOKEN || '',
+})
 
-/**
- * Creates or updates a HubSpot Contact by Email.
- */
-export async function upsertHubSpotContact(data: DiagnosticoPayload, score: number, tier: Tier) {
-    // Map our payload to HubSpot internal property names
-    const properties: any = {
-        email: data.email,
-        firstname: data.nombre,
-        lastname: data.apellido,
-        phone: data.telefono,
-        company: data.empresa,
-        website: data.web_o_instagram,
-        country: data.pais,
+// ─────────────────────────────────────────────────────────────────
+// Main site functions (Diagnostico funnel)
+// ─────────────────────────────────────────────────────────────────
 
-        // Custom properties (created in HubSpot via API)
-        lead_source: "premium_site_diagnostico",
-        prequal_score: score,
+export async function upsertHubSpotContact(data: Record<string, unknown>, score: number, tier: string): Promise<string> {
+    const properties: Record<string, string> = {
+        email: data.email as string,
+        firstname: data.nombre as string,
+        lastname: (data.apellido as string) ?? 'N/A',
+        phone: data.telefono as string,
+        company: (data.empresa as string) ?? 'N/A',
+        website: data.web_o_instagram as string,
+        country: (data.pais as string) ?? 'N/A',
+        prequal_score: String(score),
         prequal_tier: tier,
-        industry_segment: data.industria,
-        monthly_revenue_range: data.ingresos_mensuales,
-        monthly_budget_range: data.presupuesto_marketing,
-        growth_goal: data.objetivo_principal.join(";"),
-        urgency_range: data.urgencia,
-        capital_interest: data.interes_capital === "Sí" ? "true" : "false",
-        whatsapp_optin: data.whatsapp_optin ? "true" : "false",
-        origin_page: data.origin_page || "",
-        utm_source: data.utm_source || "",
-        utm_medium: data.utm_medium || "",
-        utm_campaign: data.utm_campaign || "",
-        gclid: data.gclid || ""
-    };
+        industry_segment: data.industria as string,
+        monthly_revenue_range: data.ingresos_mensuales as string,
+        monthly_budget_range: data.presupuesto_marketing as string,
+        urgency_range: data.urgencia as string,
+        capital_interest: data.interes_capital as string,
+        whatsapp_optin: String(data.whatsapp_optin),
+        lead_source: 'Diagnostico Web',
+        origin_page: (data.origin_page as string) ?? '',
+        utm_source: (data.utm_source as string) ?? '',
+        utm_medium: (data.utm_medium as string) ?? '',
+        utm_campaign: (data.utm_campaign as string) ?? '',
+        gclid: (data.gclid as string) ?? '',
+    }
 
     try {
-        const searchResponse = await hubspotClient.crm.contacts.basicApi.getById(
-            data.email,
-            ["email"],
-            undefined,
-            undefined,
-            false,
-            "email"
-        );
+        // Search for existing contact by email
+        const searchResult = await hubspot.crm.contacts.searchApi.doSearch({
+            filterGroups: [{
+                filters: [{ propertyName: 'email', operator: 'EQ', value: data.email as string }]
+            }],
+            limit: 1,
+            after: '0',
+            properties: ['email'],
+            sorts: [],
+        })
 
-        // If found, UPDATE it
-        const contactId = searchResponse.id;
-        await hubspotClient.crm.contacts.basicApi.update(contactId, { properties });
-        return contactId;
-
-    } catch (error: any) {
-        if (error.code === 404 || (error.message && error.message.includes("404"))) {
-            // 2. If not found (404), CREATE it
-            const createResponse = await hubspotClient.crm.contacts.basicApi.create({ properties });
-            return createResponse.id;
+        if (searchResult.results.length > 0) {
+            // Update existing
+            const contactId = searchResult.results[0].id
+            await hubspot.crm.contacts.basicApi.update(contactId, { properties })
+            return contactId
+        } else {
+            // Create new
+            const response = await hubspot.crm.contacts.basicApi.create({ properties })
+            return response.id
         }
-
-        console.error("HubSpot Upsert Contact Error:", error.message);
-        throw new Error("Failed to upsert contact in HubSpot.");
+    } catch (error) {
+        console.error('HubSpot upsertContact Error:', error)
+        throw error
     }
 }
 
-/**
- * Creates a Deal in the configured Pipeline and Stage, assigned to Regional Owner.
- */
-export async function createHubSpotDeal(contactId: string, companyName: string, pais: string) {
+export async function createHubSpotDeal(contactId: string, company: string, country: string): Promise<string | undefined> {
+    const pipelineId = process.env.HUBSPOT_PIPELINE_ID_GROWTH || 'default'
+    const stageId = process.env.HUBSPOT_STAGE_ID_PREQUAL || 'appointmentscheduled'
+
     try {
-        const pipelineId = process.env.HUBSPOT_PIPELINE_ID_GROWTH;
-        const stageId = process.env.HUBSPOT_STAGE_ID_PREQUAL;
-
-        // Determine Owner Id by Country
-        let ownerId = process.env.HUBSPOT_OWNER_ID_USA; // default
-
-        const euCountries = ["España", "Spain", "Francia", "Alemania", "Italia", "Portugal", "UK", "Reino Unido"];
-        const latamCountries = ["México", "Mexico", "Colombia", "Argentina", "Chile", "Perú", "Peru", "Ecuador"];
-
-        if (euCountries.includes(pais)) {
-            ownerId = process.env.HUBSPOT_OWNER_ID_EU || ownerId;
-        } else if (latamCountries.includes(pais)) {
-            ownerId = process.env.HUBSPOT_OWNER_ID_LATAM || ownerId;
-        }
-
-        const properties: any = {
-            dealname: `${companyName} - Diagnóstico - SQL`,
-            pipeline: pipelineId,
-            dealstage: stageId,
-        };
-
-        if (ownerId) {
-            properties.hubspot_owner_id = ownerId;
-        }
-
-        // Create the deal
-        const dealResponse = await hubspotClient.crm.deals.basicApi.create({ properties });
-        const dealId = dealResponse.id;
-
-        const BasicApi = (hubspotClient.crm as any).associations?.v4?.basicApi;
-        if (BasicApi) {
-            await BasicApi.create(
-                "deals",
-                dealId,
-                "contacts",
-                contactId,
-                [
-                    {
-                        associationCategory: "HUBSPOT_DEFINED",
-                        associationTypeId: 3
-                    }
-                ]
-            );
-        }
-
-        return dealId;
-    } catch (error: any) {
-        console.error("HubSpot Create Deal Error:", error.message);
-        throw new Error("Failed to create deal in HubSpot.");
+        const deal = await hubspot.crm.deals.basicApi.create({
+            properties: {
+                dealname: `Pulse SQL: ${company} (${country})`,
+                dealstage: stageId,
+                pipeline: pipelineId,
+                amount: '0',
+            },
+            associations: [
+                {
+                    to: { id: contactId },
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    types: [{ associationCategory: 'HUBSPOT_DEFINED' as any, associationTypeId: 3 }]
+                }
+            ]
+        })
+        return deal.id
+    } catch (error) {
+        console.error('HubSpot createDeal Error:', error)
+        throw error
     }
 }
 
-/**
- * Updates a HubSpot contact found by email address with the given properties.
- * Used by the Calendly webhook to mark a lead as Hot Lead after booking.
- */
-export async function updateHubSpotContactByEmail(email: string, properties: Record<string, string>) {
-    const token = process.env.HUBSPOT_PRIVATE_APP_TOKEN;
-    const BASE = "https://api.hubapi.com/crm/v3/objects/contacts";
+// ─────────────────────────────────────────────────────────────────
+// Credit portal functions (NET-30 portal)
+// ─────────────────────────────────────────────────────────────────
+
+export interface HubSpotLead {
+    email: string;
+    firstName: string;
+    lastName: string;
+    score: number;
+    income: number;
+    debts: number;
+}
+
+export async function createHubSpotLead(lead: HubSpotLead) {
+    if (!process.env.HUBSPOT_PRIVATE_APP_TOKEN) {
+        console.warn('HubSpot integration skipped: No HUBSPOT_PRIVATE_APP_TOKEN provided.')
+        return null
+    }
 
     try {
-        // 1. Search for the contact by email
-        const searchRes = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-                filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }],
-                properties: ["email", "firstname"]
-            })
-        });
+        const contactResponse = await hubspot.crm.contacts.basicApi.create({
+            properties: {
+                email: lead.email,
+                firstname: lead.firstName,
+                lastname: lead.lastName,
+                credit_score_estimate: lead.score.toString(),
+                monthly_income: lead.income.toString(),
+                monthly_debts: lead.debts.toString(),
+            }
+        })
 
-        const searchData = await searchRes.json();
-        if (!searchData.results?.length) {
-            console.warn(`updateHubSpotContactByEmail: No contact found for ${email}`);
-            return null;
-        }
+        const pipelineId = process.env.HUBSPOT_DEFAULT_PIPELINE_ID || 'default'
+        const stageId = process.env.HUBSPOT_DEFAULT_STAGE_ID || 'appointmentscheduled'
 
-        const contactId = searchData.results[0].id;
+        await hubspot.crm.deals.basicApi.create({
+            properties: {
+                dealname: `Pulse Credit Lead: ${lead.firstName} ${lead.lastName}`,
+                dealstage: stageId,
+                pipeline: pipelineId,
+                amount: '0',
+            },
+            associations: [
+                {
+                    to: { id: contactResponse.id },
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    types: [{ associationCategory: 'HUBSPOT_DEFINED' as any, associationTypeId: 3 }]
+                }
+            ]
+        })
 
-        // 2. PATCH the contact with new properties
-        const updateRes = await fetch(`${BASE}/${contactId}`, {
-            method: "PATCH",
-            headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ properties })
-        });
-
-        if (!updateRes.ok) {
-            const err = await updateRes.json();
-            console.error("updateHubSpotContactByEmail PATCH error:", err);
-            return null;
-        }
-
-        console.log(`✅ HubSpot contact ${contactId} updated as Hot Lead`);
-        return contactId;
-
-    } catch (error: any) {
-        console.error("updateHubSpotContactByEmail error:", error.message);
-        return null;
+        return contactResponse
+    } catch (error) {
+        console.error('HubSpot Integration Error:', error)
+        throw error
     }
 }

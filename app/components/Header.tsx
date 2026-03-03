@@ -26,8 +26,8 @@ export function Header() {
     return (
         <header
             className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled
-                    ? "bg-black/85 backdrop-blur-xl border-b border-white/8 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.8)]"
-                    : "bg-transparent py-6"
+                ? "bg-black/85 backdrop-blur-xl border-b border-white/8 py-4 shadow-[0_4px_30px_rgba(0,0,0,0.8)]"
+                : "bg-transparent py-6"
                 }`}
         >
             <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
@@ -74,10 +74,8 @@ export function Header() {
                     </ul>
 
                     {/* CTA Button */}
-                    <a
-                        href="https://capital.pulseagencyusa.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <Link
+                        href="/credito"
                         className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white text-[13px] font-bold transition-all group"
                         style={{
                             background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
@@ -95,7 +93,7 @@ export function Header() {
                     >
                         Crédito NET-30
                         <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-                    </a>
+                    </Link>
                 </nav>
 
                 {/* Mobile Menu Button */}
@@ -125,17 +123,15 @@ export function Header() {
                             </li>
                         ))}
                     </ul>
-                    <a
-                        href="https://capital.pulseagencyusa.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <Link
+                        href="/credito"
                         className="flex items-center justify-center gap-2 py-4 rounded-2xl text-white font-black text-sm uppercase tracking-wider"
                         style={{ background: "linear-gradient(135deg, #7c3aed, #6d28d9)" }}
                         onClick={() => setMobileMenuOpen(false)}
                     >
                         Crédito NET-30
                         <ArrowRight className="w-4 h-4" />
-                    </a>
+                    </Link>
                 </div>
             )}
         </header>

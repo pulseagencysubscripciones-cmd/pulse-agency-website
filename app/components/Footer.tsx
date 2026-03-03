@@ -7,7 +7,7 @@ const footerLinks = {
         { name: "Cómo funciona", href: "/como-funciona" },
         { name: "Contacto", href: "/contacto" },
         { name: "Diagnóstico gratuito", href: "/#diagnostico" },
-        { name: "Capital NET-30", href: "https://capital.pulseagencyusa.com" },
+        { name: "Capital NET-30", href: "/credito" },
     ],
     legal: [
         { name: "Privacy Policy", href: "/legal/privacy" },
